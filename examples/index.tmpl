@@ -1,0 +1,15 @@
+use strict;
+use warnings;
+
+{
+    body => \'index.tmpl',
+    title => '',
+    
+    plugins => [
+        qw/LinkifyText/,
+    ],
+    
+    plug_linkify_text => {
+        text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
+    },
+}

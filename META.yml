@@ -1,0 +1,25 @@
+---
+name: App-ZofCMS-Plugin-LinkifyText
+version: 0.0101
+author:
+  - "'Zoffix <'zoffix@cpan.org'>"
+abstract: plugin to convert links in plain text into proper HTML <a> elements
+license: perl
+resources:
+  license: http://dev.perl.org/licenses/
+build_requires:
+  Test::More: 0
+requires:
+  App::ZofCMS::Plugin::Base: 0.0103
+  HTML::Entities: 1.35
+  URI::Find::Schemeless: 20090319
+configure_requires:
+  Module::Build: 0.34
+provides:
+  App::ZofCMS::Plugin::LinkifyText:
+    file: lib/App/ZofCMS/Plugin/LinkifyText.pm
+    version: 0.0101
+generated_by: Module::Build version 0.34
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
