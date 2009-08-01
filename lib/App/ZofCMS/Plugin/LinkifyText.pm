@@ -3,7 +3,7 @@ package App::ZofCMS::Plugin::LinkifyText;
 use warnings;
 use strict;
 
-our $VERSION = '0.0101';
+our $VERSION = '0.0102';
 use URI::Find::Schemeless;
 use HTML::Entities;
 use base 'App::ZofCMS::Plugin::Base';
@@ -124,11 +124,35 @@ B<Mandatory>. You need to include the plugin to the list of plugins to execute.
         },
     },
 
-B<Mandatory>. Takes a hashref as a value; individual keys can be set in 
+    plug_linkify_text => {
+        text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
+        encode_entities => 1,
+        new_lines_as_br => 1,
+        cell => 't',
+        key  => 'plug_linkify_text',
+        callback => sub {
+            my $uri = encode_entities $_[0];
+            return qq|<a href="$uri">$uri</a>|;
+        },
+    },
+
+    plug_linkify_text => sub {
+        my ( $t, $q, $config ) = @_;
+        return {
+            text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
+        }
+    }
+
+B<Mandatory>. Takes a hashref or a subref as a value; individual keys can be set in
 both Main Config
 File and ZofCMS Template, if the same key set in both, the value in ZofCMS 
 Template will
-take precedence. The following keys/values are accepted:
+take precedence. If subref is specified,
+its return value will be assigned to C<plug_linkify_text> as if it was already there. If sub returns
+an C<undef>, then plugin will stop further processing. The C<@_> of the subref will
+contain (in that order): ZofCMS Tempalate hashref, query parameters hashref and
+L<App::ZofCMS::Config> object.
+The following keys/values are accepted:
 
 =head3 C<text>
 
@@ -141,13 +165,6 @@ take precedence. The following keys/values are accepted:
             qq|http://zoffix.com|,
             qq|foo\nbar\nhaslayout.net|,
         ]
-    }
-    
-    plug_linkify_text => {
-        text => sub {
-            my ( $t, $q, $config ) = @_;
-            return qq|http://zoffix.com foo\nbar\nhaslayout.net|;
-        }
     }
 
 B<Mandatory>. Can be set to either a string of text, arrayref of strings
