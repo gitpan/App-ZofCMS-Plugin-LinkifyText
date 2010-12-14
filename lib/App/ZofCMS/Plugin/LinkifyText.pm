@@ -3,7 +3,7 @@ package App::ZofCMS::Plugin::LinkifyText;
 use warnings;
 use strict;
 
-our $VERSION = '0.0102';
+our $VERSION = '0.0110';
 use URI::Find::Schemeless;
 use HTML::Entities;
 use base 'App::ZofCMS::Plugin::Base';
@@ -31,34 +31,61 @@ sub _do {
         unless defined $conf->{text}
             and length $conf->{text};
 
-    my $finder = URI::Find::Schemeless->new( $conf->{callback} );
-
     if ( ref $conf->{text} eq 'ARRAY' ) {
         my @results;
         for ( @{ $conf->{text} } ) {
-            if ( $conf->{encode_entities} ) {
-                encode_entities $_;
-                s/\r?\n/<br>/g
-                    if $conf->{new_lines_as_br};
-            }
-
-            $finder->find( \$_ );
-            
-            push @results, { text => $_ };
+            push @results, { text => process_text( $conf, $_ ) };
         }
         $t->{ $conf->{cell} }{ $conf->{key} } = \@results;
     }
-    else {
-        if ( $conf->{encode_entities} ) {
-            encode_entities $conf->{text};
-            $conf->{text} =~ s/\r?\n/<br>/g
-                if $conf->{new_lines_as_br};
-        }
-
-        $finder->find( \ $conf->{text} );
-
-        $t->{ $conf->{cell} }{ $conf->{key} } = $conf->{text};
+    elsif ( ref $conf->{text} eq 'REF' ) {
+        process_in_place_edits( $conf, $t );
     }
+    else {
+        $t->{ $conf->{cell} }{ $conf->{key} }
+        = process_text( $conf, $conf->{text} );
+    }
+}
+
+sub process_in_place_edits {
+    my ( $conf, $t ) = @_;
+
+    my @text_keys = grep /^text\d*$/, keys %$conf;
+
+    for my $conf_key ( @text_keys ) {
+        my $text_ref = ref $conf->{$conf_key} eq 'REF' ?
+            ${ $conf->{$conf_key} } : $conf->{$conf_key};
+
+        if ( ref $text_ref eq 'ARRAY' ) {
+            my ( $data_key, @text_keys ) = @$text_ref;
+            for my $text_hashref ( @{ $t->{t}{$data_key} || [] } ) {
+                for ( @text_keys ) {
+                    $text_hashref->{$_}
+                    = process_text( $conf, $text_hashref->{$_} );
+                }
+            }
+        }
+        else {
+            $text_ref = $$text_ref
+                if ref $text_ref;
+
+            $t->{t}{$text_ref} = process_text( $conf, $t->{t}{$text_ref} );
+        }
+    }
+}
+
+sub process_text {
+    my ( $conf, $text ) = @_;
+
+    if ( $conf->{encode_entities} ) {
+        encode_entities $text;
+
+        $text =~ s/\r?\n/<br>/g
+            if $conf->{new_lines_as_br};
+    }
+
+    URI::Find::Schemeless->new( $conf->{callback} )->find( \$text );
+    return $text;
 }
 
 1;
@@ -159,7 +186,7 @@ The following keys/values are accepted:
     plug_linkify_text => {
         text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
     }
-    
+
     plug_linkify_text => {
         text => [
             qq|http://zoffix.com|,
@@ -167,14 +194,154 @@ The following keys/values are accepted:
         ]
     }
 
-B<Mandatory>. Can be set to either a string of text, arrayref of strings
-of text or a subref. If value is a subref its C<@_> will contain
-(in this order) ZofCMS Template hashref, query parameters hashef and
-L<App::ZofCMS::Config> object. The return value will be assigned
-to C<text> argument as if it was there originally. C<undef> values will
-cause the plugin to stop executing any further. The one string vs. 
-arrayref values affect plugin's output format. See C<OUTPUT> section below
-for details.
+    plug_linkify_text => {
+        text => sub {
+            my ( $t, $q, $config ) = @_;
+            return $q->{text_to_linkify};
+        },
+    }
+
+    plug_linkify_text => {
+        text  => \[ qw/replies  reply_text/ ],
+        text2 => 'post_text',
+        text3 => [ qw/comments  comment_text  comment_link_text/ ],
+    }
+
+B<Pseudo-Mandatory>; if not specified (or C<undef>) plugin will not run.
+Takes a wide range of values:
+
+=head4 subref
+
+    plug_linkify_text => {
+        text => sub {
+            my ( $t, $q, $config ) = @_;
+            return $q->{text_to_linkify};
+        },
+    }
+
+If set to a subref, the sub's C<@_> will contain C<$t>, C<$q>,
+and C<$config> (in that order), where C<$t> is ZofCMS Template hashref,
+C<$q> is query parameter hashref, and C<$config> is L<App::ZofCMS::Config>
+object. The return value from the sub can be any valid value accepted
+by the C<text> argument (except the subref) and the plugin will proceed
+as if the returned value was assigned to C<text> in the first place
+(including the C<undef>, upon which the plugin will stop executing).
+
+=head4 scalar
+
+    plug_linkify_text => {
+        text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
+    }
+
+If set to a scalar, the plugin will interpret the scalar as the string
+that needs to be linkified (i.e. links in the text changed to HTML links).
+Processed string will be stored into C<key> key under C<cell> first-level
+key (see the description for these below).
+
+=head4 arraref
+
+    plug_linkify_text => {
+        text => [
+            qq|http://zoffix.com|,
+            qq|http://zoffix.com|,
+        ]
+    }
+
+    # output:
+    $VAR1 = {
+        't' => 'plug_linkify_text' => [
+            { text => '<a href="http://zoffix.com/">http://zoffix.com/</a>' },
+            { text => '<a href="http://zoffix.com/">http://zoffix.com/</a>' },
+    };
+
+If set to an arrayref, each element of that arrayref will be taken
+as a string that needs to be linkified. The output will be stored 
+into C<key> key under C<cell> first-level key, and that output will be
+an arrayref of hashrefs. Each hashref will have only one key - C<text> -
+value of which is the converted text (thus you can use this arrayref
+directly in C<< <tmpl_loop> >>)
+
+=head4 a ref of a ref
+
+    plug_linkify_text => {
+        text  => \[ qw/replies  reply_text/ ],
+        text2 => 'post_text',
+        text3 => [ qw/comments  comment_text  comment_link_text/ ],
+    }
+
+Lastly, C<text> can be set to a... ref of a ref (bare with me). I think
+it's easier to understand the functionality when it's viewed as a
+following sequential process:
+
+When C<text> is set to a ref of a ref, the plugin enables the I<inplace>
+edit mode. This is as far as this goes, and plugin dereferences this
+ref of a ref into an arrayref or a scalarref. Along with a simple scalar,
+these entities can be assigned to any I<extra> C<text> keys (see below).
+What I<inplace> edit mode means is that C<text> no longer contains direct
+strings of text to linkify, but rather an address of where to find,
+and edit, those strings.
+
+When I<inplace> mode is turned on, you can tell plugin to linkify
+multiple places. In order to specify another address for a string to edit,
+simply add another C<text> postfixed with a number (e.g. C<text4>; what
+the actual number is does not matter, the key just needs to match 
+C<qr/^text\d+$/>). The values of all the B<extra> C<text> keys do not have
+to be refs of refs, but rather can be either scalars, scalarrefs
+or arrayrefs.
+
+A scalar and scalarref have same meaning here, i.e. the scalarref will
+be automatically dereferenced into a scalar. A simple scalar tells the
+plugin that the value of this scalar is the name of a key inside 
+C<{t}> ZofCMS Template special key, value of which contains the text to
+be linkified. The plugin will directly modify (linkify) that text. This
+can be used, for example, when you use L<App::ZofCMS::Plugin::DBI> plugin's
+"single" retrieval mode.
+
+The arrayrefs have different meaning. Their purpose is to process
+B<arrayrefs of hashrefs> (this will probably conjure up 
+L<App::ZofCMS::Plugin::DBI> plugin's output in your mind). The first
+item in the arrayref represents the name of the key inside the
+C<{t}> ZofCMS Template special key's hashref; the value of that key is
+the arrayref of hashrefs. All the following (one or more) items in the
+arrayref represent hashref keys that point to data to linkify.
+
+Let's take a look at actual code examples. Let's imagine your C<{t}>
+special key contains the following arrayref, say, put there by DBI plugin;
+this arrayref is referenced by a C<dbi_output> key here. Also in the
+example, the C<dbi_output_single> is set to a scalar, a string of text that
+we want to linkify:
+
+    dbi_output => [
+        { ex => 'foo', ex2 => 'bar' },
+        { ex => 'ber', ex2 => 'beer' },
+        { ex => 'baz', ex2 => 'craz' },
+    ],
+    dbi_output_single => 'some random text',
+
+If you want to linkify all the texts inside C<dbi_output>
+to which the C<ex> keys point, you'd set C<text> value as
+C<< text => \[ qw/dbi_output  ex/ ] >>. If you want to linkify the C<ex2>
+data as well, then you'd set C<text> as
+C<< text => \[ qw/dbi_output  ex  ex2/ ] >>. Can you guess what the code
+to linkify I<all> the text in the example above will be? Here it is:
+
+    # note that we are assigning a REF of an arrayref to the first `text`
+    plug_linkify_text => {
+        text    => \[
+            'dbi_output',  # the key inside {t}
+            'ex', 'ex2'    # keys of individual hashrefs that point to data
+        ],
+        text2   => 'dbi_output_single', # note that we didn't have to make this a ref
+    }
+    
+    # here's an alternative version that does the same thing:
+    plug_linkify_text => {
+        text    => \\'dbi_output_single', # note that this is a ref of a ref
+        text554 => [  # this now doesn't have to be a ref of a ref
+            'dbi_output',  # the key inside {t}
+            'ex', 'ex2'    # keys of individual hashrefs that point to data
+        ],
+    }
 
 =head3 C<encode_entities>
 
@@ -242,25 +409,6 @@ See L<URI::Find::Schemeless> for details. B<Defaults to:>
         my $uri = encode_entities $_[0];
         return qq|<a href="$uri">$uri</a>|;
     },
-
-=head1 OUTPUT
-
-    $VAR1 = {
-        't' => 'plug_linkify_text' => '<a href="http://zoffix.com/">http://zoffix.com/</a>'
-    };
-
-    $VAR1 = {
-        't' => 'plug_linkify_text' => [
-            { text => '<a href="http://zoffix.com/">http://zoffix.com/</a>' },
-            { text => '<a href="http://zoffix.com/">http://zoffix.com/</a>' },
-    };
-
-Depending on whether C<text> plugin's argument is set to a string
-or an arrayref of strings, the plugin will set the C<key> key under C<cell>
-first-level key to either a converted string or an arrayref of hashrefs
-respectively. Each hashref will have only one key - C<text> - value
-of which is the converted text (thus you can use this arrayref
-directly in C<< <tmpl_loop> >>).
 
 =head1 AUTHOR
 

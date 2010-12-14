@@ -12,8 +12,8 @@ plan skip_all
     if $@;
 
 plugin_ok(
-    '',
-    { plug_linkify_text => { extra => 1 } },
+    'LinkifyText',
+    { plug_linkify_text => { text => 'foo_bar', extra => 1 } },
     {},
-    { plug_linkify_text => { extra => 1 } },
+    { plug_linkify_text => { text => 'foo_bar', extra => 1 } },
 );

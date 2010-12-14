@@ -1,5 +1,10 @@
 Revision history for App-ZofCMS-Plugin-LinkifyText
 
+0.0110  December 15, 2010
+        Added ability to do the processing on existing keys in the template,
+        modifying them in place.
+        Fixed invalid 01-plugin.t test
+
 0.0102  July 31, 2009
         Added missing part of docs
 
