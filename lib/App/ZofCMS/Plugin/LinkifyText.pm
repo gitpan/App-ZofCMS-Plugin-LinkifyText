@@ -3,7 +3,7 @@ package App::ZofCMS::Plugin::LinkifyText;
 use warnings;
 use strict;
 
-our $VERSION = '0.0110';
+our $VERSION = '0.0111';
 use URI::Find::Schemeless;
 use HTML::Entities;
 use base 'App::ZofCMS::Plugin::Base';
@@ -90,6 +90,8 @@ sub process_text {
 
 1;
 __END__
+
+=encoding utf8
 
 =head1 NAME
 
