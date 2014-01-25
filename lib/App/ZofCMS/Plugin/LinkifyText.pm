@@ -3,9 +3,10 @@ package App::ZofCMS::Plugin::LinkifyText;
 use warnings;
 use strict;
 
-our $VERSION = '0.0111';
-use URI::Find::Schemeless;
-use HTML::Entities;
+our $VERSION = '1.001001';
+use URI::Find::Schemeless 20111103;
+use HTML::Entities 3.69;
+use URI::Escape 3.31;
 use base 'App::ZofCMS::Plugin::Base';
 
 sub _key { 'plug_linkify_text' }
@@ -16,8 +17,8 @@ sub _defaults {
     new_lines_as_br => 1,
     text => undef,
     callback => sub {
-        my $uri = encode_entities $_[0];
-        return qq|<a href="$uri">$uri</a>|;
+        my $url = uri_escape $_[0];
+        return qq|<a href="$url">$_[0]</a>|;
     },
 }
 sub _do {
@@ -112,8 +113,8 @@ In ZofCMS Template or Main Config File:
         cell => 't',
         key  => 'plug_linkify_text',
         callback => sub {
-            my $uri = encode_entities $_[0];
-            return qq|<a href="$uri">$uri</a>|;
+            my $url = uri_escape $_[0];
+            return qq|<a href="$url">$_[0]</a>|;
         },
     },
 
@@ -148,8 +149,8 @@ B<Mandatory>. You need to include the plugin to the list of plugins to execute.
         cell => 't',
         key  => 'plug_linkify_text',
         callback => sub {
-            my $uri = encode_entities $_[0];
-            return qq|<a href="$uri">$uri</a>|;
+            my $url = uri_escape $_[0];
+            return qq|<a href="$url">$_[0]</a>|;
         },
     },
 
@@ -160,8 +161,8 @@ B<Mandatory>. You need to include the plugin to the list of plugins to execute.
         cell => 't',
         key  => 'plug_linkify_text',
         callback => sub {
-            my $uri = encode_entities $_[0];
-            return qq|<a href="$uri">$uri</a>|;
+            my $url = uri_escape $_[0];
+            return qq|<a href="$url">$_[0]</a>|;
         },
     },
 
@@ -398,8 +399,8 @@ B<Defaults to:> C<plug_linkify_text>
     plug_linkify_text => {
         text => qq|http://zoffix.com foo\nbar\nhaslayout.net|,
         callback => sub {
-            my $uri = encode_entities $_[0];
-            return qq|<a href="$uri">$uri</a>|;
+            my $url = uri_escape $_[0];
+            return qq|<a href="$url">$_[0]</a>|;
         },
     },
 
@@ -408,8 +409,8 @@ as the "callback" sub in L<URI::Find::Schemeless>'s C<find()> method.
 See L<URI::Find::Schemeless> for details. B<Defaults to:>
 
     sub {
-        my $uri = encode_entities $_[0];
-        return qq|<a href="$uri">$uri</a>|;
+        my $url = uri_escape $_[0];
+        return qq|<a href="$url">$_[0]</a>|;
     },
 
 =head1 AUTHOR
